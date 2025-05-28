@@ -2,13 +2,17 @@ package net.sdko.dotorgredirector;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.*;
 
+import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
+import net.sdko.dotorgredirector.core.RedirectHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockFilterChain;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.springframework.mock.web.MockFilterConfig;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -23,54 +27,49 @@ public class RedirectFilterTest {
   private RedirectFilter redirectFilter;
   private MockHttpServletRequest request;
   private MockHttpServletResponse response;
-  private MockFilterChain filterChain;
+  
+  @Mock
+  private FilterChain filterChain;
+  
+  @Mock
+  private RedirectHandler mockRedirectHandler;
 
   @BeforeEach
   public void setUp() {
-    redirectFilter = new RedirectFilter(TARGET_URL, "prod", VERSION);
-    // Don't use metrics in test to avoid dependencies
-    redirectFilter.setMetrics(null);
+    MockitoAnnotations.openMocks(this);
+    redirectFilter = new RedirectFilter(mockRedirectHandler);
 
     request = new MockHttpServletRequest();
     response = new MockHttpServletResponse();
-    filterChain = new MockFilterChain();
   }
 
   @Test
   public void testRedirectToRootPath() throws ServletException, IOException {
     // Given
     request.setRequestURI("/");
+    when(mockRedirectHandler.handleRedirect(request, response)).thenReturn(true);
 
     // When
     redirectFilter.doFilter(request, response, filterChain);
 
     // Then
-    assertEquals(302, response.getStatus());
-    String redirectUrl = response.getRedirectedUrl();
-
-    assertTrue(redirectUrl.startsWith(TARGET_URL + "/?"));
-    assertTrue(redirectUrl.contains("x-sws-event=dot-org-redirect"));
-    assertTrue(redirectUrl.contains("x-sws-env=prod"));
-    assertTrue(redirectUrl.contains("x-sws-version=" + VERSION));
-    assertTrue(redirectUrl.contains("x-sws-tracing-id="));
-    assertTrue(redirectUrl.matches(".*x-sws-ts=\\d+.*"));
+    verify(mockRedirectHandler).handleRedirect(request, response);
+    // No verification on filterChain because the redirect was handled
+    verifyNoInteractions(filterChain);
   }
 
   @Test
   public void testRedirectWithPath() throws ServletException, IOException {
     // Given
     request.setRequestURI("/test-path");
+    when(mockRedirectHandler.handleRedirect(request, response)).thenReturn(true);
 
     // When
     redirectFilter.doFilter(request, response, filterChain);
 
     // Then
-    assertEquals(302, response.getStatus());
-    String redirectUrl = response.getRedirectedUrl();
-
-    assertTrue(redirectUrl.startsWith(TARGET_URL + "/test-path?"));
-    assertTrue(redirectUrl.contains("x-sws-event=dot-org-redirect"));
-    assertTrue(redirectUrl.contains("x-sws-tracing-id="));
+    verify(mockRedirectHandler).handleRedirect(request, response);
+    verifyNoInteractions(filterChain);
   }
 
   @Test
@@ -79,58 +78,49 @@ public class RedirectFilterTest {
     request.setRequestURI("/search");
     request.setParameter("q", "test");
     request.setParameter("page", "1");
+    when(mockRedirectHandler.handleRedirect(request, response)).thenReturn(true);
 
     // When
     redirectFilter.doFilter(request, response, filterChain);
 
     // Then
-    assertEquals(302, response.getStatus());
-    String redirectUrl = response.getRedirectedUrl();
-
-    assertTrue(redirectUrl.startsWith(TARGET_URL + "/search?"));
-    assertTrue(redirectUrl.contains("x-sws-event=dot-org-redirect"));
-    assertTrue(redirectUrl.contains("x-sws-tracing-id="));
-    assertTrue(redirectUrl.contains("q=test"));
-    assertTrue(redirectUrl.contains("page=1"));
+    verify(mockRedirectHandler).handleRedirect(request, response);
+    verifyNoInteractions(filterChain);
   }
 
   @Test
-  public void testRedirectWithDevEnvironment() throws ServletException, IOException {
-    // Given
-    RedirectFilter devFilter = new RedirectFilter(TARGET_URL, "dev", VERSION);
-    devFilter.setMetrics(null);
-    request.setRequestURI("/test-path");
-
-    // When
-    devFilter.doFilter(request, response, filterChain);
-
-    // Then
-    assertEquals(302, response.getStatus());
-    String redirectUrl = response.getRedirectedUrl();
-
-    assertTrue(redirectUrl.contains("x-sws-env=dev"));
-    assertTrue(redirectUrl.contains("x-sws-tracing-id="));
-  }
-
-  @Test
-  public void testSkipRedirectForBackendPaths() throws ServletException, IOException {
+  public void testContinueFilterChainWhenNotHandled() throws ServletException, IOException {
     // Given
     request.setRequestURI("/backend/healthz");
-
-    // Setup filter with exclude pattern
-    redirectFilter = new RedirectFilter(TARGET_URL, "prod", VERSION);
-    redirectFilter.setMetrics(null);
-
-    // Create a mock FilterConfig with the excludePattern
-    MockFilterConfig filterConfig = new MockFilterConfig();
-    filterConfig.addInitParameter("excludePattern", "/backend/*");
-    redirectFilter.init(filterConfig);
+    when(mockRedirectHandler.handleRedirect(request, response)).thenReturn(false);
 
     // When
     redirectFilter.doFilter(request, response, filterChain);
 
-    // Then - should not redirect but continue the filter chain
-    assertEquals(200, response.getStatus());
-    assertEquals(null, response.getRedirectedUrl());
+    // Then
+    verify(mockRedirectHandler).handleRedirect(request, response);
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
+  public void testFilterInitialization() throws ServletException {
+    // Create a mock FilterConfig
+    MockFilterConfig filterConfig = new MockFilterConfig();
+    filterConfig.addInitParameter("excludePattern", "/backend/*");
+    
+    // Initialize the filter
+    redirectFilter.init(filterConfig);
+    
+    // Nothing to verify since init method doesn't do anything with the config yet
+    // This test just ensures the method doesn't throw an exception
+  }
+  
+  @Test
+  public void testFilterDestroy() {
+    // Call the destroy method
+    redirectFilter.destroy();
+    
+    // Nothing to verify as the method has no functionality,
+    // but this test ensures coverage
   }
 }

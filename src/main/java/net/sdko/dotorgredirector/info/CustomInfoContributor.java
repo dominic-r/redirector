@@ -1,5 +1,8 @@
 package net.sdko.dotorgredirector.info;
 
+import io.sentry.Sentry;
+import io.sentry.SentryLevel;
+import io.sentry.SentryOptions;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.RuntimeMXBean;
@@ -7,6 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 import net.sdko.dotorgredirector.config.AppProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.info.Info;
 import org.springframework.boot.actuate.info.InfoContributor;
 import org.springframework.stereotype.Component;
@@ -35,6 +39,10 @@ public final class CustomInfoContributor implements InfoContributor {
 
   /** Percentage multiplier. */
   private static final int PERCENTAGE_MULTIPLIER = 100;
+  
+  /** The Sentry DSN. */
+  @Value("${backend.sentry.dsn:}")
+  private String sentryDsn;
 
   /** The application environment. */
   private final String environment;
@@ -110,10 +118,56 @@ public final class CustomInfoContributor implements InfoContributor {
         "heapUtilization",
         String.format("%.2f%%", (double) heapUsed / heapMax * PERCENTAGE_MULTIPLIER));
     memoryStats.put("nonHeapUsed", nonHeapUsed + "MB");
+    
+    // Sentry information
+    Map<String, Object> sentryInfo = new HashMap<>();
+    sentryInfo.put("enabled", Sentry.isEnabled());
+    
+    // Mask the DSN for security
+    if (sentryDsn != null && !sentryDsn.isEmpty()) {
+      sentryInfo.put("configured", true);
+      
+      // Simple masking to hide sensitive parts of the DSN
+      int atIndex = sentryDsn.indexOf('@');
+      String maskedDsn = "not available";
+      if (atIndex > 0) {
+        maskedDsn = sentryDsn.substring(0, Math.min(8, atIndex)) + "..." + 
+            sentryDsn.charAt(atIndex) + "...";
+      }
+      sentryInfo.put("dsn", maskedDsn);
+    } else {
+      sentryInfo.put("configured", false);
+      sentryInfo.put("dsn", "not configured");
+    }
+    
+    // Get additional Sentry configuration details if available
+    try {
+      sentryInfo.put("release", "dot-org@" + appProperties.getVersion());
+      sentryInfo.put("environment", environment);
+      
+      // Add transaction sample rate if available
+      sentryInfo.put("traces_sample_rate", 1.0);
+    } catch (Exception e) {
+      sentryInfo.put("config_error", e.getMessage());
+    }
+    
+    // Add a test event ID
+    if (Sentry.isEnabled()) {
+      try {
+        io.sentry.protocol.SentryId testId = 
+            Sentry.captureMessage("Info endpoint check", SentryLevel.DEBUG);
+        if (testId != null) {
+          sentryInfo.put("last_test_event_id", testId.toString());
+        }
+      } catch (Exception e) {
+        sentryInfo.put("test_event_error", e.getMessage());
+      }
+    }
 
     // Add all details to the info builder
     builder.withDetail("application", appDetails);
     builder.withDetail("runtime", runtimeStats);
     builder.withDetail("memory", memoryStats);
+    builder.withDetail("sentry", sentryInfo);
   }
 }

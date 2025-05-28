@@ -1,32 +1,41 @@
 package net.sdko.dotorgredirector.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.validation.annotation.Validated;
+import jakarta.validation.constraints.NotBlank;
 
 /**
- * Configuration properties for the application. This class holds configuration values that can be
- * set via application properties.
+ * Application configuration properties loaded from application.properties.
  */
-@Configuration
 @ConfigurationProperties(prefix = "app")
+@Validated
 public class AppProperties {
-  /** The target URL to which requests will be redirected. */
-  private String targetUrl = "https://www.d-roy.ca";
-
-  /** The application version. */
-  private String version;
-
+  
   /**
-   * Constructs an AppProperties instance with the given application version.
-   *
-   * @param applicationVersion The version of the application
+   * The target URL to which requests will be redirected.
    */
-  @Autowired
-  public AppProperties(@Qualifier("applicationVersion") final String applicationVersion) {
-    this.version = applicationVersion;
-  }
+  @NotBlank
+  private String targetUrl = "https://www.d-roy.ca";
+  
+  /**
+   * The application version.
+   */
+  private String version;
+  
+  /**
+   * Flag to enable debug mode.
+   */
+  private boolean debug = false;
+  
+  /**
+   * Pattern for paths that should be excluded from redirection.
+   */
+  private String excludePattern = "/backend/*";
+  
+  /**
+   * HTTP status code to use for redirects.
+   */
+  private int redirectStatusCode = 302;
 
   /**
    * Gets the target URL.
@@ -40,10 +49,10 @@ public class AppProperties {
   /**
    * Sets the target URL.
    *
-   * @param newTargetUrl The new target URL
+   * @param targetUrl The new target URL
    */
-  public void setTargetUrl(final String newTargetUrl) {
-    this.targetUrl = newTargetUrl;
+  public void setTargetUrl(String targetUrl) {
+    this.targetUrl = targetUrl;
   }
 
   /**
@@ -56,15 +65,65 @@ public class AppProperties {
   }
 
   /**
-   * Required for Spring Boot property binding. The version is primarily set by the constructor
-   * using the applicationVersion bean, but this setter allows overriding via application
-   * properties.
+   * Sets the application version.
    *
-   * @param newVersion The version to set
+   * @param version The version to set
    */
-  public void setVersion(final String newVersion) {
-    if (newVersion != null && !newVersion.equals("unknown-version")) {
-      this.version = newVersion;
-    }
+  public void setVersion(String version) {
+    this.version = version;
+  }
+
+  /**
+   * Checks if debug mode is enabled.
+   *
+   * @return true if debug is enabled, false otherwise
+   */
+  public boolean isDebug() {
+    return debug;
+  }
+
+  /**
+   * Sets the debug mode.
+   *
+   * @param debug The debug mode to set
+   */
+  public void setDebug(boolean debug) {
+    this.debug = debug;
+  }
+
+  /**
+   * Gets the exclude pattern for paths that should not be redirected.
+   *
+   * @return The exclude pattern
+   */
+  public String getExcludePattern() {
+    return excludePattern;
+  }
+
+  /**
+   * Sets the exclude pattern.
+   *
+   * @param excludePattern The exclude pattern to set
+   */
+  public void setExcludePattern(String excludePattern) {
+    this.excludePattern = excludePattern;
+  }
+  
+  /**
+   * Gets the HTTP status code to use for redirects.
+   *
+   * @return The HTTP status code
+   */
+  public int getRedirectStatusCode() {
+    return redirectStatusCode;
+  }
+  
+  /**
+   * Sets the HTTP status code to use for redirects.
+   *
+   * @param redirectStatusCode The HTTP status code to set
+   */
+  public void setRedirectStatusCode(int redirectStatusCode) {
+    this.redirectStatusCode = redirectStatusCode;
   }
 }

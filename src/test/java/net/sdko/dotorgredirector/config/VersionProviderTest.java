@@ -1,7 +1,9 @@
 package net.sdko.dotorgredirector.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.*;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,20 +15,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
-class VersionConfigTest {
+class VersionProviderTest {
 
   @TempDir Path tempDir;
 
-  private VersionConfig versionConfig;
+  private VersionProvider versionProvider;
   private Path versionFilePath;
 
   @BeforeEach
   void setUp() {
-    versionConfig = new VersionConfig();
+    versionProvider = new VersionProvider();
     versionFilePath = tempDir.resolve("VERSIONFILE");
 
     // Use reflection to replace the default path with our test path
-    ReflectionTestUtils.setField(versionConfig, "versionFilePath", versionFilePath.toString());
+    ReflectionTestUtils.setField(versionProvider, "versionFilePath", versionFilePath.toString());
   }
 
   @Test
@@ -35,7 +37,7 @@ class VersionConfigTest {
     Files.writeString(versionFilePath, "1.2.3");
 
     // Act
-    String version = versionConfig.applicationVersion();
+    String version = versionProvider.getVersion();
 
     // Assert
     assertEquals("1.2.3", version);
@@ -47,7 +49,7 @@ class VersionConfigTest {
     Files.writeString(versionFilePath, "  1.2.3  \n");
 
     // Act
-    String version = versionConfig.applicationVersion();
+    String version = versionProvider.getVersion();
 
     // Assert
     assertEquals("1.2.3", version);
@@ -59,7 +61,7 @@ class VersionConfigTest {
     Files.writeString(versionFilePath, "");
 
     // Act
-    String version = versionConfig.applicationVersion();
+    String version = versionProvider.getVersion();
 
     // Assert
     assertEquals("unknown-version", version);
@@ -68,9 +70,22 @@ class VersionConfigTest {
   @Test
   void shouldUseDefaultVersionWhenFileNotExists() {
     // Act
-    String version = versionConfig.applicationVersion();
+    String version = versionProvider.getVersion();
 
     // Assert
     assertEquals("unknown-version", version);
   }
-}
+  
+  @Test
+  void shouldUseDefaultVersionWhenFileCannotBeRead() throws IOException {
+    // Use a path that will cause an IOException when reading (file doesn't exist)
+    String nonExistentPath = tempDir.resolve("non-existent-folder/VERSIONFILE").toString();
+    ReflectionTestUtils.setField(versionProvider, "versionFilePath", nonExistentPath);
+    
+    // Act
+    String version = versionProvider.getVersion();
+    
+    // Assert
+    assertEquals("unknown-version", version);
+  }
+} 
