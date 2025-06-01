@@ -51,31 +51,42 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
   public ResponseEntity<Object> handleAllExceptions(Exception ex, HttpServletRequest request) {
     String errorId = UUID.randomUUID().toString();
     
-    LOGGER.error("Unhandled exception [{}]: {}", errorId, ex.getMessage(), ex);
-    
-    // Report to Sentry
-    Sentry.configureScope(scope -> {
-      scope.setTag("error_id", errorId);
-      scope.setTag("environment", environment);
-      scope.setTag("version", version);
+    if (ex instanceof SecurityException) {
+      LOGGER.warn("Security violation [{}]: {}", errorId, ex.getMessage());
+    } else {
+      LOGGER.error("Unhandled exception [{}]: {}", errorId, ex.getMessage(), ex);
       
-      // Add request data
-      Map<String, String> requestData = new HashMap<>();
-      requestData.put("url", request.getRequestURL().toString());
-      requestData.put("method", request.getMethod());
-      requestData.put("user_agent", request.getHeader("User-Agent"));
-      requestData.put("remote_addr", request.getRemoteAddr());
-      scope.setContexts("request", requestData);
-    });
+      // Report non-security exceptions to Sentry
+      Sentry.configureScope(scope -> {
+        scope.setTag("error_id", errorId);
+        scope.setTag("environment", environment);
+        scope.setTag("version", version);
+        
+        // Add request data
+        Map<String, String> requestData = new HashMap<>();
+        requestData.put("url", request.getRequestURL().toString());
+        requestData.put("method", request.getMethod());
+        requestData.put("user_agent", request.getHeader("User-Agent"));
+        requestData.put("remote_addr", request.getRemoteAddr());
+        scope.setContexts("request", requestData);
+      });
+      
+      Sentry.captureException(ex);
+    }
     
-    Sentry.captureException(ex);
-    
-    // Return error response
+    // Return appropriate response based on exception type
     Map<String, Object> errorResponse = new HashMap<>();
-    errorResponse.put("error", "Internal Server Error");
-    errorResponse.put("error_id", errorId);
-    errorResponse.put("message", "An unexpected error occurred");
     
-    return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    if (ex instanceof SecurityException) {
+      errorResponse.put("error", "Bad Request");
+      errorResponse.put("error_id", errorId);
+      errorResponse.put("message", ex.getMessage());
+      return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    } else {
+      errorResponse.put("error", "Internal Server Error");
+      errorResponse.put("error_id", errorId);
+      errorResponse.put("message", "An unexpected error occurred");
+      return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 } 

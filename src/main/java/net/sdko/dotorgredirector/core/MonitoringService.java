@@ -120,6 +120,9 @@ public class MonitoringService {
      * @param throwable The exception to capture
      */
     public void captureException(Throwable throwable) {
-        Sentry.captureException(throwable);
+        // Don't report security exceptions to Sentry
+        if (throwable != null && !(throwable instanceof SecurityException)) {
+            Sentry.captureException(throwable);
+        }
     }
 } 

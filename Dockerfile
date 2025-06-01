@@ -6,11 +6,11 @@ COPY pom.xml .
 
 COPY VERSIONFILE ./VERSIONFILE
 
-RUN mvn dependency:go-offline -B
+RUN mvn dependency:go-offline -B -Djavafx.platform=linux
 
 COPY src ./src
 
-RUN mvn clean package -DskipTests
+RUN mvn clean package -DskipTests -Djavafx.platform=linux
 
 FROM eclipse-temurin:21.0.7_6-jre-alpine@sha256:8728e354e012e18310faa7f364d00185277dec741f4f6d593af6c61fc0eb15fd
 
@@ -22,4 +22,4 @@ COPY --from=build /app/VERSIONFILE ./VERSIONFILE
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "/app/app.jar"] 
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

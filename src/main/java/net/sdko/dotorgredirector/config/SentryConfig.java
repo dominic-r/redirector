@@ -74,6 +74,13 @@ public class SentryConfig {
             
             // Add a before-send callback to log events
             options.setBeforeSend((event, hint) -> {
+                // Filter out SecurityExceptions
+                if (event.getThrowable() != null && event.getThrowable() instanceof SecurityException) {
+                    LOGGER.debug("Filtering out SecurityException from Sentry: {}", 
+                        event.getThrowable().getMessage());
+                    return null; // Don't send the event
+                }
+                
                 if (event.getLevel() != null && event.getLevel().ordinal() <= SentryLevel.INFO.ordinal()) {
                     // Log a simple message for INFO and DEBUG level events
                     LOGGER.debug("Sending {} level event to Sentry", event.getLevel());
@@ -125,6 +132,13 @@ public class SentryConfig {
         
         // Add a before-send callback to log events
         options.setBeforeSend((event, hint) -> {
+            // Filter out SecurityExceptions
+            if (event.getThrowable() != null && event.getThrowable() instanceof SecurityException) {
+                LOGGER.debug("Filtering out SecurityException from Sentry: {}", 
+                    event.getThrowable().getMessage());
+                return null; // Don't send the event
+            }
+            
             if (event.getLevel() != null && event.getLevel().ordinal() <= SentryLevel.INFO.ordinal()) {
                 // Log a simple message for INFO and DEBUG level events
                 LOGGER.debug("Sending {} level event to Sentry", event.getLevel());

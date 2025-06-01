@@ -73,17 +73,25 @@ public class RedirectHandler {
                 request, tracingId, appProperties.getTargetUrl());
         
         try {
-            // Record metrics
-            if (redirectMetrics != null) {
+            // Record metrics if available and timer is not null
+            if (redirectMetrics != null && redirectMetrics.getRedirectTimer() != null) {
                 redirectMetrics.incrementRedirectCount();
                 return redirectMetrics.getRedirectTimer().recordCallable(() -> 
                         performRedirect(request, response, transaction));
             } else {
+                if (redirectMetrics != null) {
+                    redirectMetrics.incrementRedirectCount();
+                }
                 return performRedirect(request, response, transaction);
             }
+        } catch (SecurityException e) {
+            LOGGER.warn("Security violation in redirect request: {}", e.getMessage());
+            monitoringService.finishSpanError(transaction, e);
+            return handleRedirectError(response, e);
         } catch (Exception e) {
             LOGGER.error("Error during redirect", e);
             monitoringService.captureException(e);
+            monitoringService.finishSpanError(transaction, e);
             return handleRedirectError(response, e);
         } finally {
             transaction.finish();
@@ -157,9 +165,16 @@ public class RedirectHandler {
      */
     private boolean handleRedirectError(HttpServletResponse response, Exception exception) {
         try {
-            response.sendError(
-                    HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
-                    "Redirect failed: " + exception.getMessage());
+            if (exception instanceof SecurityException) {
+                LOGGER.warn("Security violation in redirect request: {}", exception.getMessage());
+                response.sendError(
+                        HttpServletResponse.SC_BAD_REQUEST, 
+                        "Invalid request: " + exception.getMessage());
+            } else {
+                response.sendError(
+                        HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                        "Redirect failed: " + exception.getMessage());
+            }
         } catch (IOException ioe) {
             LOGGER.error("Failed to send error response", ioe);
         }
