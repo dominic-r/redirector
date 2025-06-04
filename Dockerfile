@@ -1,4 +1,4 @@
-FROM maven:3.9.9-eclipse-temurin-21-alpine@sha256:bca048b298f5cbcc6e2c966e4f0099245b4720464519dd0dc17e77769f15ca03 AS build
+FROM maven:3.9.9-eclipse-temurin-21-alpine@sha256:5a8b906c4faa11d33f6c74758f67db8eac25441e14b0729f6d50ff78992be58a AS build
 
 WORKDIR /app
 
